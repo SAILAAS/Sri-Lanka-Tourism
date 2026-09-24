@@ -1,0 +1,301 @@
+// ============================================================
+// East Sri Lanka Tourism — Database schema
+// Run: npx prisma migrate dev --name init
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  TOURIST
+  BUSINESS_OWNER
+  ADMIN
+}
+
+enum ListingType {
+  HOTEL
+  RESTAURANT
+  ACTIVITY
+  TOUR
+}
+
+enum ListingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum SubscriptionPlan {
+  FREE
+  BASIC
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum BookingType {
+  HOTEL
+  RESTAURANT
+  ACTIVITY
+  TOUR
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+// ---------- Core ----------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  passwordHash  String
+  role          Role      @default(TOURIST)
+  phone         String?
+  avatarUrl     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  bookings      Booking[]
+  reviews       Review[]
+  businessListing BusinessListing?
+}
+
+model Destination {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  region      String   // e.g. Trincomalee, Batticaloa, Ampara
+  summary     String
+  description String
+  highlights  String[]
+  coverImageUrl String
+  images      String[]
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  hotels      Hotel[]
+  restaurants Restaurant[]
+  activities  Activity[]
+  events      Event[]
+}
+
+model Hotel {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  description   String
+  address       String
+  pricePerNight Float
+  starRating    Int      @default(3)
+  amenities     String[]
+  coverImageUrl String
+  images        String[]
+  status        ListingStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  destination   Destination @relation(fields: [destinationId], references: [id])
+  destinationId String
+
+  owner         BusinessListing? @relation(fields: [businessListingId], references: [id])
+  businessListingId String?
+
+  rooms         Room[]
+  reviews       Review[]
+  bookings      Booking[]
+}
+
+model Room {
+  id        String  @id @default(cuid())
+  hotelId   String
+  hotel     Hotel   @relation(fields: [hotelId], references: [id])
+  type      String
+  price     Float
+  capacity  Int
+  images    String[]
+}
+
+model Restaurant {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  description   String
+  cuisineType   String
+  priceRange    String   // $, $$, $$$
+  address       String
+  coverImageUrl String
+  images        String[]
+  status        ListingStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  destination   Destination @relation(fields: [destinationId], references: [id])
+  destinationId String
+
+  owner         BusinessListing? @relation(fields: [businessListingId], references: [id])
+  businessListingId String?
+
+  reviews       Review[]
+  bookings      Booking[]
+}
+
+model Activity {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  description   String
+  category      String   // surfing, whale-watching, safari, diving...
+  price         Float
+  durationHours Float
+  coverImageUrl String
+  images        String[]
+  status        ListingStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  destination   Destination @relation(fields: [destinationId], references: [id])
+  destinationId String
+
+  owner         BusinessListing? @relation(fields: [businessListingId], references: [id])
+  businessListingId String?
+
+  reviews       Review[]
+  bookings      Booking[]
+}
+
+model TourPackage {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  description   String
+  durationDays  Int
+  price         Float
+  includedItems String[]
+  coverImageUrl String
+  images        String[]
+  status        ListingStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner         BusinessListing? @relation(fields: [businessListingId], references: [id])
+  businessListingId String?
+
+  reviews       Review[]
+  bookings      Booking[]
+}
+
+model Event {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  description   String
+  startDate     DateTime
+  endDate       DateTime
+  coverImageUrl String
+  createdAt     DateTime @default(now())
+
+  destination   Destination @relation(fields: [destinationId], references: [id])
+  destinationId String
+}
+
+model TravelGuideArticle {
+  id            String   @id @default(cuid())
+  title         String
+  slug          String   @unique
+  category      String
+  content       String
+  coverImageUrl String
+  publishedAt   DateTime @default(now())
+}
+
+// ---------- Business owner side ----------
+
+model BusinessListing {
+  id            String   @id @default(cuid())
+  owner         User     @relation(fields: [ownerId], references: [id])
+  ownerId       String   @unique
+  businessName  String
+  businessType  ListingType
+  registrationNo String?
+  contactPhone  String
+  status        ListingStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+
+  hotels        Hotel[]
+  restaurants   Restaurant[]
+  activities    Activity[]
+  tours         TourPackage[]
+  subscription  Subscription?
+}
+
+model Subscription {
+  id                String   @id @default(cuid())
+  businessListing   BusinessListing @relation(fields: [businessListingId], references: [id])
+  businessListingId String   @unique
+  plan              SubscriptionPlan @default(FREE)
+  status            SubscriptionStatus @default(ACTIVE)
+  startDate         DateTime @default(now())
+  endDate           DateTime?
+}
+
+// ---------- Bookings & reviews ----------
+
+model Booking {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  type        BookingType
+  hotelId     String?
+  hotel       Hotel?      @relation(fields: [hotelId], references: [id])
+  restaurantId String?
+  restaurant  Restaurant? @relation(fields: [restaurantId], references: [id])
+  activityId  String?
+  activity    Activity?   @relation(fields: [activityId], references: [id])
+  tourId      String?
+  tour        TourPackage? @relation(fields: [tourId], references: [id])
+
+  startDate   DateTime
+  endDate     DateTime?
+  guests      Int      @default(1)
+  totalPrice  Float
+  status      BookingStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  rating      Int
+  comment     String
+  createdAt   DateTime @default(now())
+
+  hotelId     String?
+  hotel       Hotel?      @relation(fields: [hotelId], references: [id])
+  restaurantId String?
+  restaurant  Restaurant? @relation(fields: [restaurantId], references: [id])
+  activityId  String?
+  activity    Activity?   @relation(fields: [activityId], references: [id])
+  tourId      String?
+  tour        TourPackage? @relation(fields: [tourId], references: [id])
+}
